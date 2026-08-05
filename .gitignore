@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.omo/
+grounded_clinical_agent.egg-info/
+data/qdrant_db/
+data/raw/
+data/PDFS/
+data/DOCX/
+data/TXT/
+*.png

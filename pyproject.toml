@@ -1,0 +1,31 @@
+[project]
+name = "grounded-clinical-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic[bedrock]>=0.116.0",
+    "boto3>=1.43.30",
+    "ddgs>=9.14.4",
+    "docling>=2.117.0",
+    "duckduckgo-search>=8.1.1",
+    "fastapi>=0.138.0",
+    "ipython>=9.16.0",
+    "langchain>=1.3.9",
+    "langchain-aws>=1.5.1",
+    "langchain-community>=0.4.2",
+    "langchain-core>=1.4.7",
+    "langchain-google-genai>=4.2.5",
+    "langchain-groq>=1.1.3",
+    "langchain-huggingface>=1.2.2",
+    "langchain-qdrant>=1.1.0",
+    "langgraph>=1.2.5",
+    "langgraph-supervisor>=0.0.31",
+    "psycopg>=3.3.4",
+    "pydantic>=2.13.4",
+    "pytest>=9.1.0",
+    "python-dotenv>=1.2.2",
+    "sentence-transformers>=5.6.1",
+    "uvicorn>=0.49.0",
+]
