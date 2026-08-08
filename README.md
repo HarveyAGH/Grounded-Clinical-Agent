@@ -40,7 +40,7 @@ user query
 │   ├── ingest.py           # PDF → markdown → chunks → vector store (run once per corpus update)
 │   ├── doc_parser.py       # PDF parsing (docling)
 │   ├── content_processor.py# chunking
-│   ├── vectorstore.py      # Qdrant persistence (local, all-MiniLM-L6-v2 embeddings)
+│   ├── vectorstore.py      # Qdrant persistence (local, MedEmbed-small biomedical embeddings)
 │   └── retrieval.py        # similarity search with scores
 ├── evals/
 │   ├── run_eval.py         # 20-question faithfulness eval, auto-records runs in benchmarks.json
