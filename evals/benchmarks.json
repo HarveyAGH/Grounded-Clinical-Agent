@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "description": "Benchmark ledger for grounded-clinical-agent RAG evals. run_eval.py appends a row automatically on every run. r000 is the legacy heuristic result and is NOT a valid baseline.",
+  "runs": [
+    {
+      "run_id": "r000",
+      "date": "2026-08-05",
+      "commit": "42bfc08",
+      "agent_model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "heuristic_token_overlap",
+      "questions_file": "evals/adversarial_questions.json (old 10-question set)",
+      "num_questions": 10,
+      "avg_faithfulness": 0.063,
+      "hallucination_rate": 0.937,
+      "notes": "INVALID baseline: heuristic fallback (ragas import was broken) + empty vector store. Do not compare against it."
+    },
+    {
+      "run_id": "r001",
+      "date": "2026-08-08",
+      "commit": "42bfc08",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.05,
+      "hallucination_rate": 0.95,
+      "notes": ""
+    },
+    {
+      "run_id": "r002",
+      "date": "2026-08-08",
+      "commit": "42bfc08",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.581,
+      "hallucination_rate": 0.419,
+      "notes": ""
+    },
+    {
+      "run_id": "r003",
+      "date": "2026-08-08",
+      "commit": "42bfc08",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.761,
+      "hallucination_rate": 0.239,
+      "notes": ""
+    }
+  ]
+}

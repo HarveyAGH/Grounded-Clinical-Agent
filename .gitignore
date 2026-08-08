@@ -10,3 +10,5 @@ data/PDFS/
 data/DOCX/
 data/TXT/
 *.png
+.langgraph_api/
+evals/data/
