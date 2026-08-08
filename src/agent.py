@@ -2,6 +2,7 @@ from langchain_aws import ChatBedrockConverse
 from dotenv import load_dotenv 
 import os
 import json
+import threading
 from pydantic import BaseModel, Field
 from typing import Optional
 from langgraph.graph import START, END, StateGraph, MessagesState
@@ -12,12 +13,16 @@ from langchain.messages import SystemMessage, HumanMessage
 from typing import Literal, TypedDict, List, Annotated
 from langgraph.types import Send
 from langgraph.prebuilt import ToolNode
-from .tools import tools
+from .tools import tools, retrieve_clinical_evidence
 from langgraph.managed import RemainingSteps
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage, AIMessage
 from langchain.agents import create_agent
 from langchain.agents.structured_output import StructuredOutputValidationError
 from .states import MedicalAgentState, EvaluatorOptimizer, Router, MedicalAnswer
+
+# The embedding model (MedEmbed-small) is fully cached on disk; never let the
+# HuggingFace hub re-validate it at runtime (that logged 96 HEAD/GET requests).
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 system_prompt_router = open("src/prompts/AgentDecisionSystemPrompt.md").read()
 system_prompt_medical = open("src/prompts/MedicalSystemMessage.md").read()
@@ -38,6 +43,7 @@ haiku_converstaional = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=B
 router = haiku.with_structured_output(Router)
 llm_with_rag = haiku.bind_tools(tools=tools + [MedicalAnswer], tool_choice="any")
 Feedback = haiku.with_structured_output(EvaluatorOptimizer)
+medical_answer_model = haiku.with_structured_output(MedicalAnswer)
 
 medical_agent = create_agent(
     model=haiku,
@@ -54,50 +60,82 @@ HumanMessage(content=f"here is the query to give a verdict on: {state['user_quer
     return {"status": verdict.verdict, }
 
 def medical_agent_node(state: MedicalAgentState):
-    # we assign messages with the entire message history
+    # Collapsed single-pass pipeline: exactly ONE forced retrieval followed by
+    # ONE structured MedicalAnswer call, instead of the ReAct tool loop.
+    # Cuts the medical path from (retrieval + 2 model calls + tool round-trips)
+    # to just (retrieval + 1 answer call).
     messages = state["messages"]
-    # we assignnew_messages variable to an empty list which will get populated by either the if/else blocks
-    new_messages = []
-    # we are saying if the history does not exist we want to invoke this instance of  new_messages
-    if not messages:
-        new_messages = [
-            SystemMessage(content=system_prompt_medical),
-            HumanMessage(content=f"user query is: {state['user_query']}"),
-        ]
-    # we are saying if the feedback state exists, instead of using the previous new_message variable we want to use this one to invoke it
-    elif state.get("Feedback"):
-        new_messages = [HumanMessage(content=f"Revise your previous answer using this feedback, then conduct a fresh retrival with a better more suitable query: {state['Feedback']}")]
-    # we then finally call the llm inserting the full message history + the selected new_message depending on the if/else blocks
+    feedback = state.get("Feedback")
+
+    # 1) Forced retrieval -- always happens, exactly once, before answering.
+    if feedback:
+        retrieval_query = (
+            f"Revise your previous answer using this feedback, then conduct a fresh "
+            f"retrieval with a better more suitable query: {feedback}"
+        )
+    else:
+        retrieval_query = state["user_query"]
+    chunks = retrieve_clinical_evidence.invoke({"query": retrieval_query, "k": 5})
+
+    # 2) ONE structured MedicalAnswer call with the retrieved chunks in context.
+    new_messages = [
+        SystemMessage(content=system_prompt_medical),
+        HumanMessage(content=f"user query is: {state['user_query']}"),
+    ]
+    if feedback:
+        new_messages.append(
+            HumanMessage(content=f"Checker feedback on your previous answer, revise accordingly: {feedback}")
+        )
+    new_messages.append(
+        HumanMessage(
+            content="The retrieve_clinical_evidence tool has already been called and "
+            "its output is provided below. Use ONLY this evidence to compose your "
+            f"MedicalAnswer:\n\n{chunks}"
+        ),
+    )
     prompt = messages + new_messages
+
+    answer = None
     for attempt in range(3):
         try:
-            response = medical_agent.invoke({"messages": prompt})
+            answer = medical_answer_model.invoke(prompt)
             break
         except StructuredOutputValidationError:
             if attempt == 2:
                 raise
-    answer = response["structured_response"]
-    retrieved_chunks = []
-    for msg in state["messages"]:
-        if isinstance(msg, ToolMessage):
-            retrieved_chunks.append(msg.content)
-            
-            
-        
-    # we return only the final generated rag output into `generated_medical_output`
-    # then we return the new_messages block (whether it was if or else's one)  alongside the full response into the message history
-    return{
+
+    return {
         "generated_medical_output": answer.answer,
-        "messages": response["messages"],
-        "retrieved_chunks": retrieved_chunks
+        "messages": prompt + [AIMessage(content=answer.answer)],
+        "retrieved_chunks": [chunks],
     }
         
 
+def _content_to_text(content) -> str:
+    """Extract plain text from a LangChain content value, which may be a plain
+    string or a list of typed blocks (e.g. [{'type': 'text', 'text': ...}]).
+    Bedrock Converse streams the block-list form, so joining raw values
+    (''.join) crashes with 'expected str instance, list found'."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    parts = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and block.get("type") == "text":
+            parts.append(block.get("text", ""))
+    return "".join(parts)
+
+
 def CONVERSATION_AGENT(state: MedicalAgentState):
-    #TODO:
-    response = haiku_converstaional.invoke([SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way"),
-    HumanMessage(content=f"user query is: {state['user_query']}")])
-    return {"generated_normal_output": response.content}
+    chunks = []
+    for chunk in haiku_converstaional.stream([SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way keeping your answers short, professional and concise"),
+    HumanMessage(content=f"user query is: {state['user_query']}")]):
+        if chunk.content:
+            chunks.append(_content_to_text(chunk.content))
+    return {"generated_normal_output": "".join(chunks)}
 
 
 
@@ -120,6 +158,11 @@ def groundness_checker(state: MedicalAgentState):
         "generated_output_valid_or_not": response.grader,
         "retry_count": (state.get("retry_count", 0) + 1),
     }
+
+
+def synthesizer(state: MedicalAgentState):
+    response = haiku_converstaional.invoke([SystemMessage(content=f"Take these answers and only format them beautifully so you return the output back to the user: {state['generated_medical_output']}")])
+    return {"final_answer": _content_to_text(response.content)}
 
 
 
@@ -170,7 +213,7 @@ graph.add_node("medical_agent", medical_agent_node)
 graph.add_node("standard_agent", CONVERSATION_AGENT)
 graph.add_node("query_validator", Router_function)
 graph.add_node("checker", groundness_checker)
-graph.add_node("tool_node", ToolNode(tools))
+graph.add_node("synthesizer", synthesizer)
 
 graph.add_edge(START, "query_validator")
 graph.add_conditional_edges("query_validator", Route,
@@ -184,7 +227,7 @@ graph.add_conditional_edges("query_validator", Route,
 graph.add_edge("medical_agent", "checker")
 graph.add_conditional_edges("checker", Response_route,
     {
-        "SUCESS": END,
+        "SUCESS": "synthesizer",
         "RECRUSION_LIMIT_REACHED": "fallback_node",
         "MAX_LOOP_REACHED": "eval_fallback_node",
         "REDO_NEEDED": "medical_agent"
@@ -193,8 +236,26 @@ graph.add_conditional_edges("checker", Response_route,
 graph.add_edge("standard_agent", END)
 graph.add_edge("fallback_node", END)
 graph.add_edge("eval_fallback_node", END)
+graph.add_edge("synthesizer", END)
 
 app = graph.compile()
+
+
+def _warm_up():
+    """Pre-warm the Bedrock connection and the vector store so the first real
+    request doesn't pay the ~60s cold start (Bedrock times out after ~4min
+    idle; HF re-validates the embedding model against the hub)."""
+    try:
+        haiku.invoke([HumanMessage(content="ping")])
+    except Exception:
+        pass
+    try:
+        retrieve_clinical_evidence.invoke({"query": "dental infection", "k": 1})
+    except Exception:
+        pass
+
+
+threading.Thread(target=_warm_up, daemon=True).start()
 
 img = app.get_graph().draw_mermaid_png()
 with open("medical_workflow.png", "wb") as f:

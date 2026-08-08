@@ -19,10 +19,11 @@ class MedicalAgentState(MessagesState):
     retrieved_chunks: str
     remaining_steps: RemainingSteps
     retry_count: int
+    final_answer: str | None
     
 class Router(BaseModel):
     verdict: Literal["medical_agent", "conversational_agent"]
-    reasoning: str = Field(description="Your reasoning for selecting this verdict")
+    reasoning: str = Field(description="Your reasoning for selecting this verdict with 1 line")
     confidence: float = Field(description=" Value between 0.0 and 1.0 indicating your confidence in this decision")
     
     
@@ -56,12 +57,12 @@ class CitedClaim(BaseModel):
 class MedicalAnswer(BaseModel):
     answer: str = Field(
         ..., 
-        description="Complete answer composed ONLY of cited claims"
+        description="Complete answer composed ONLY of cited claims, do not make it super long and make it short"
     )
     claims: List[CitedClaim] = Field(
         ..., 
         min_length=1,
-        description="List of individual claims, each with its own citation"
+        description="List of individual claims, each with its own citation (i line, formatted beautifully)"
     )
     disclaimer: str = Field(
         default="This information is for educational purposes only and does not constitute medical advice."

@@ -3,6 +3,8 @@ Retrieval step: query -> most relevant chunks.
 v0 scope: plain similarity search. No reranking or query expansion yet
 (deferred).
 """
+import threading
+
 from langchain_core.documents import Document
 
 from .vectorstore import load_vectorstore
@@ -10,12 +12,15 @@ from .vectorstore import load_vectorstore
 # Loaded once and reused, not reopened on every call -- important once this
 # is invoked repeatedly inside an agent loop.
 _store = None
+_store_lock = threading.Lock()
 
 
 def _get_store():
     global _store
     if _store is None:
-        _store = load_vectorstore()
+        with _store_lock:
+            if _store is None:
+                _store = load_vectorstore()
     return _store
 
 
