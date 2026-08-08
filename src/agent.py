@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import os
 import json
 import threading
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing import Optional
 from langgraph.graph import START, END, StateGraph, MessagesState
 from datetime import datetime
@@ -96,13 +96,38 @@ def medical_agent_node(state: MedicalAgentState):
     prompt = messages + new_messages
 
     answer = None
+    last_error: Exception | None = None
     for attempt in range(3):
         try:
             answer = medical_answer_model.invoke(prompt)
             break
-        except StructuredOutputValidationError:
-            if attempt == 2:
-                raise
+        except (StructuredOutputValidationError, ValidationError) as exc:
+            last_error = exc
+            if attempt < 2:
+                # Feed the schema error back so the model can correct it
+                # (e.g. an empty claims list) instead of re-invoking the
+                # identical prompt.
+                prompt = prompt + [
+                    HumanMessage(
+                        content=(
+                            "Your previous structured output failed schema "
+                            f"validation: {exc}. Fix the error and return a "
+                            "valid MedicalAnswer."
+                        )
+                    )
+                ]
+    if answer is None:
+        # 3 failed attempts: escalate like evaluator_fallback_node so one bad
+        # question can't crash the whole run (the eval harness has no per-case
+        # guard around app.invoke).
+        return {
+            "generated_medical_output": (
+                "Unable to produce a schema-valid answer after multiple attempts "
+                "— escalating for human review."
+            ),
+            "messages": prompt,
+            "retrieved_chunks": [chunks],
+        }
 
     return {
         "generated_medical_output": answer.answer,
