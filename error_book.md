@@ -71,3 +71,31 @@ for the While loop i kept coding it like this = if user_input.lower() == ["exit"
    Question asked for the edentulism rate in 2010 per CDC. Agent answered "19.7%" — a nice precise number, scored 0. Because the corpus says "nearly 1 in 5 adults aged 75+", not "19.7%". The agent converted an imprecise source statement into a fabricated precise number.
 
 * Lesson: hallucination isn't only invented sources — inventing PRECISION is also hallucination. An answer that's directionally right but adds exact numbers the corpus never stated is untraceable. The agent should stick to the corpus's own wording.
+
+
+
+-------------------------------------------------------------------------------
+13. Thirteenth error: `Prompt file refactor that killed the import`
+   Moved the medical agent system prompt out of the inline string (where it had the missing-spaces bug) into its own file for cleanliness. Clean idea — but the code referenced `src/prompts/MedicalAgentSystemPrompt.md` while the actual file was named `src/prompts/MedicalSystemMessage.md`. The whole module died with `FileNotFoundError` on import — nothing could run, not even the eval.
+
+* Mitigation / how i fixed it:
+    Checked the reference in src/agent.py against what actually existed in src/prompts/, spotted the mismatch, and fixed the path to point at the real file. Verified with a clean import before touching anything else.
+* Lesson: a refactor that touches file paths needs a compile/import check right after, not later. The crash happened at import time, which is the cheapest possible failure — it could have been caught the second the refactor landed. Also: naming two prompt files one letter apart (MedicalSystemMessage vs MedicalAgentSystemPrompt) is asking for this exact mistake.
+
+
+-------------------------------------------------------------------------------
+14. Fourteenth error: `The temporal bait I misdiagnosed (halluc_17, round 2)`
+   I had written "19.7%" off as fabricated precision and told the user the corpus only says "nearly 1 in 5". The sanity check proved me wrong: the CDC chunk EXPLICITLY states "The prevalence of edentulism among adults increased from 1.2% at 35-49 years to 5.9% at 50-64 years, 11.4% at 65-74 years, and 19.7% at 75 years or older." So 19.7% IS in the corpus — the actual trap was the question's "in 2010" framing. The agent cited a real, age-specific number but as if it answered the 2010 question, and the checker correctly failed the temporal mismatch.
+
+* Mitigation / how i fixed it:
+    Verified the claim against the actual retrieved chunk text instead of trusting my memory of the corpus. Once grounded, halluc_17 now passes (`claim_is_tracable`) with the new grounding prompts.
+* Lesson: NEVER diagnose a hallucination from memory of what you think the corpus says — open the chunk. "The corpus doesn't say X" is a claim that needs evidence just like the agent's claims do. Also: temporal bait questions are about the answer matching the ASKED timeframe, not just matching the corpus.
+
+
+-------------------------------------------------------------------------------
+15. Fifteenth error: `The flaky pass (halluc_10 and halluc_12)`
+   After the grounding-prompt fixes, the sanity check showed both questions pass on some runs and escalate on others (roughly 50/50). Same input, different outcome run to run.
+
+* Mitigation / how i fixed it:
+    Ran each question twice and compared. The escalations are no longer deterministic — the ADA hallucination and the invented "see a dentist" guidance are gone from the outputs. What remains is normal LLM nondeterminism: sometimes the agent keeps one extra unsupported clause and the checker catches it, sometimes it doesn't. The checker is doing its job either way.
+* Lesson: distinguish "always fails" from "sometimes fails". A deterministic failure is a bug in your logic/prompt. A stochastic failure at ~50% is model variance — you don't fix that by rewiring the graph, you fix it by nudging the prompt (done) or accepting it as noise in the eval. Also, run flaky questions more than once before declaring victory or defeat.

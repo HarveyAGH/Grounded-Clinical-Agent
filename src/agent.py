@@ -29,7 +29,8 @@ load_dotenv()
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-haiku-4-5-20251001-v1:0")
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
 
-haiku = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION)
+haiku = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0)
+haiku_converstaional = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.7)
 
 
 
@@ -94,7 +95,7 @@ def medical_agent_node(state: MedicalAgentState):
 
 def CONVERSATION_AGENT(state: MedicalAgentState):
     #TODO:
-    response = haiku.invoke([SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way"),
+    response = haiku_converstaional.invoke([SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way"),
     HumanMessage(content=f"user query is: {state['user_query']}")])
     return {"generated_normal_output": response.content}
 

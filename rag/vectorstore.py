@@ -8,10 +8,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 
 QDRANT_PATH = "./data/qdrant_db"
-COLLECTION_NAME = "research_papers"
+COLLECTION_NAME = "clinical_guidelines"
 
 # One embedding model instance, reused by both build and load.
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embedding_model = HuggingFaceEmbeddings(model_name="abhinand/MedEmbed-small-v0.1")
 
 
 def build_vectorstore(chunks: list[Document]) -> QdrantVectorStore:

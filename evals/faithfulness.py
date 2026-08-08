@@ -23,7 +23,7 @@ JUDGE_MODEL_ID = os.getenv("JUDGE_MODEL_ID", "anthropic.claude-sonnet-4-6")
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
 
 if ChatBedrockConverse is not None and LangchainLLMWrapper is not None and Faithfulness is not None and SingleTurnSample is not None:
-    _judge_llm = ChatBedrockConverse(model=JUDGE_MODEL_ID, region_name=BEDROCK_REGION)
+    _judge_llm = ChatBedrockConverse(model=JUDGE_MODEL_ID, region_name=BEDROCK_REGION, temperature=0)
     _evaluator_llm = LangchainLLMWrapper(_judge_llm)
     _faithfulness = Faithfulness(llm=_evaluator_llm)
 else:
