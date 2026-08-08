@@ -49,6 +49,30 @@
       "avg_faithfulness": 0.761,
       "hallucination_rate": 0.239,
       "notes": ""
+    },
+    {
+      "run_id": "r004",
+      "date": "2026-08-08",
+      "commit": "35228b6",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.93,
+      "hallucination_rate": 0.07,
+      "notes": ""
+    },
+    {
+      "run_id": "r005",
+      "date": "2026-08-08",
+      "commit": "35228b6",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.803,
+      "hallucination_rate": 0.197,
+      "notes": "NEGATIVE RESULT (experiment): refusal-stop prompt rules appended to MedicalSystemMessage.md made clean refusals score WORSE (0.930->0.803) because the ragas judge lacks the ADR-011 refusal-leniency the internal checker has. Prompt reverted to r004 state immediately after. r004 (0.930) remains the deployment baseline."
     }
   ]
 }

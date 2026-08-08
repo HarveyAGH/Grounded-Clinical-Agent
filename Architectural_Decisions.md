@@ -11,6 +11,7 @@
 
 | # | Decision | Status | Applies to |
 |---|----------|--------|------------|
+| [ADR-017](#adr-017-r004-measured-impact-and-change-attribution) | r004 measured impact (0.761 → 0.930) + attribution | ✅ Applied | `evals/benchmarks.json` |
 | [ADR-016](#adr-016-biomedical-embedding-model-and-collection-rename) | Biomedical embedding model + collection rename | ✅ Applied | `rag/vectorstore.py` |
 | [ADR-015](#adr-015-deterministic-pipeline-temperature-0) | Deterministic pipeline (temperature 0) | ✅ Applied | `src/agent.py`, `evals/faithfulness.py` |
 | [ADR-014](#adr-014-grounding-prompt-hardening) | Grounding prompt hardening (no qualifiers / no invented sources) | ✅ Applied | `src/prompts/MedicalSystemMessage.md` |
@@ -27,6 +28,54 @@
 | [ADR-003](#adr-003-inference-profile-model-ids) | Bedrock model IDs use `global.` inference-profile prefix | ✅ Applied | `.env` |
 | [ADR-002](#adr-002-package-layout--src--evals) | Package layout: `src/` + `evals/` | ✅ Applied | repo structure |
 | [ADR-001](#adr-001-strict-grounded-generation-loop) | Strict grounded generation loop (retrieve → cite → verify → redo) | ✅ Applied | `src/agent.py` |
+
+---
+
+## ADR-017: r004 Measured Impact and Change Attribution
+
+> **Before implementing this, you should understand this file: `evals/benchmarks.json`
+
+**Status:** ✅ Applied (2026-08-08)
+
+**Context:** r003 ended at 0.761 avg faithfulness / 23.9% hallucination. A bundle
+of changes shipped afterward (biomedical embeddings ADR-016, deterministic
+pipeline ADR-015, grounding-prompt hardening ADR-014, harness field fix
+ADR-012). r004 was the first full eval to measure the combined effect.
+
+**Decision:** None — this ADR records the measured outcome of the bundle.
+
+**Measured result (r004):**
+
+| Metric | r003 | r004 | Δ |
+|--------|------|------|---|
+| Avg faithfulness | 0.761 | **0.930** | +0.169 |
+| Hallucination rate | 23.9% | **7.0%** | −16.9 pts |
+| Perfect questions (1.0) | 9 / 20 | **16 / 20** | +7 |
+
+**Why the bump happened — per-change attribution:**
+- **Biomedical embeddings (ADR-016) — largest single contributor.** Scores
+  shifted from the 0.48–0.57 band to 0.67–0.80, so the *right* chunks surface
+  for clinical queries. Every in-corpus fact question (01–09, 15–16, 18–20)
+  now hits its source; halluc_09 (amoxicillin dose — previously the retrieval
+  problem child) went to 1.0.
+- **Harness field fix (ADR-012):** halluc_14 (capital of France) 0.0 → 1.0 —
+  conversational answers now score via the field that actually ran.
+- **Temp 0 (ADR-015):** failures became deterministic; the grounding-prompt
+  fixes could actually land instead of being masked by sampling noise.
+- **Grounding prompts (ADR-014):** no invented organizations, no added
+  percentages, no qualifiers — the temporal-bait question (halluc_17, the old
+  "19.7%" trap) now scores 1.0 with an honest "the source does not specify 2010".
+
+**Consequences:**
+- ✅ The agent now *refuses well* — the remaining 7% is concentrated in four
+  refusal questions (halluc_10/11/12/13 at 0.625/0.556/0.7/0.714) where the
+  answer refuses correctly but appends one extra substantive claim after the
+  refusal ("while the sources indicate…", "1000–1500 ppm is recommended…").
+- ⚠️ The internal graph checker approved those answers as `claim_is_tracable`
+  while the ragas eval judge scored them lower — the internal checker is now
+  the lenient side of the loop and needs to match eval strictness.
+- ✅ Next targeted fix (post-refusal stop rule) was appended to
+  `src/prompts/MedicalSystemMessage.md` and should lift those four.
 
 ---
 
