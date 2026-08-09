@@ -1,10 +1,8 @@
 
 from pydantic import BaseModel, Field
 from langgraph.graph import  MessagesState
-from datetime import datetime
 from typing import Literal, List
 from langgraph.managed import RemainingSteps
-from pydantic import BaseModel, Field
 
 
 
@@ -19,7 +17,6 @@ class MedicalAgentState(MessagesState):
     retrieved_chunks: str
     remaining_steps: RemainingSteps
     retry_count: int
-    final_answer: str | None
     
 class Router(BaseModel):
     verdict: Literal["medical_agent", "conversational_agent"]
