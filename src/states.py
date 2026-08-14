@@ -29,7 +29,7 @@ class Router(BaseModel):
 
 class EvaluatorOptimizer(BaseModel):
     feedback: str = Field(
-        description="Go through each claim in the generated output one by one and check whether it is explicitly supported by the retrieved chunks. Name any claim that is not traceable and explain why."
+        description=" proffessional feedback the other Medical agent can read, Feedback should include any claim that is not tracable and ONLY the assessment, start off by going through each claim in the generated output one by one and check whether it is explicitly supported by the retrieved chunks."
     )
     grader: Literal["claim_not_tracable", "claim_is_tracable"] = Field(
         description="return claim_is_tracable if the medical/factual claims are supported by the retrieved chunks, ignoring refusal/disclaimer/absence statements. Only return claim_not_tracable if a substantive medical claim is unsupported"

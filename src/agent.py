@@ -9,6 +9,9 @@ from langchain_core.messages import ToolMessage
 from langchain.agents import create_agent
 from langchain.agents.structured_output import StructuredOutputValidationError
 from .states import MedicalAgentState, EvaluatorOptimizer, Router, MedicalAnswer
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
 
 system_prompt_router = open("src/prompts/AgentDecisionSystemPrompt.md").read()
 system_prompt_medical = open("src/prompts/MedicalSystemMessage.md").read()
@@ -19,9 +22,14 @@ load_dotenv()
 
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-haiku-4-5-20251001-v1:0")
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
+DB_URI = os.environ["DB_URI"]
 
 haiku = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0)
 haiku_converstaional = ChatBedrockConverse(model=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.7)
+
+pool = ConnectionPool(conninfo=DB_URI, max_size=20, check=ConnectionPool.check_connection, kwargs={"autocommit": True, "row_factory": dict_row})
+checkpointer = PostgresSaver(pool)
+checkpointer.setup()
 
 
 
@@ -95,13 +103,13 @@ def CONVERSATION_AGENT(state: MedicalAgentState):
 def groundness_checker(state: MedicalAgentState):
     if not state.get("retrieved_chunks"):
         return {
-            "Feedback": "No chunks were retrieved before generating an answer — retrieval must be attempted.",
+            "Feedback": "No chunks were retrieved before generating an answer, retrieval must be attempted.",
             "generated_output_valid_or_not": "claim_not_tracable",
             "retry_count": state.get("retry_count", 0) + 1,
         }
 
     response = Feedback.invoke([
-        SystemMessage(content="You are strict groundness checker, your main objective is to validate whether or not the generated medical output is tracable from the retrieved chunks or not, if it IS retrieved AND IS PRECIESLEY RELEVANT in terms of information, you may respond with claim_is_tracable,Claims about the agent's own limitations, disclaimers, refusal to prescribe/diagnose, or statements that the retrieved evidence does not cover a topic should be excluded from traceability checking. Only verify the medical/factual claims."),
+        SystemMessage(content="You are strict groundness checker, your main objective is to validate whether or not the generated medical output is tracable from the retrieved chunks or not, if it IS retrieved AND IS PRECIESLEY RELEVANT in terms of information, you may respond with claim_is_tracable, Claims about the agent's own limitations, disclaimers, refusal to prescribe/diagnose, or statements that the retrieved evidence does not cover a topic should be excluded from traceability checking. Only verify the medical/factual claims."),
         HumanMessage(content=f"here is the generated output: {state['generated_medical_output']}, and here is the retrieved_chunks: {state['retrieved_chunks']}")
     ])
 
@@ -175,12 +183,10 @@ graph.add_edge("standard_agent", END)
 graph.add_edge("fallback_node", END)
 graph.add_edge("eval_fallback_node", END)
 
-app = graph.compile()
 
-img = app.get_graph().draw_mermaid_png()
-with open("medical_workflow.png", "wb") as f:
-    f.write(img)
-    print("FINISHED AND PRINTED SIRE!")
+config = {"configurable": {"thread_id": "2"}}
+
+app = graph.compile(checkpointer=checkpointer)
 
 if __name__ == "__main__":
 
@@ -190,7 +196,7 @@ if __name__ == "__main__":
             print("Shutting down system..")
             break
         
-        response = app.invoke({"user_query":user_input})
+        response = app.invoke({"user_query":user_input}, config=config)
         
         print("-" * 80)
         

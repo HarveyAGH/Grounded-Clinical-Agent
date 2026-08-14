@@ -1,3 +1,14 @@
+---
+title: Grounded Clinical Agent
+emoji: 🩺
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 5.20.0
+app_file: app.py
+pinned: false
+---
+
 # Grounded Clinical Agent
 
 A LangGraph-powered clinical Q&A agent that answers dental-health questions **only from an ingested corpus of clinical guidelines** — and refuses to make claims it cannot trace back to a retrieved source.
@@ -84,17 +95,62 @@ This parses → chunks → embeds into a local Qdrant store at `data/qdrant_db/`
 
 ## Running the agent
 
+### Interactive CLI Mode
 ```bash
 python src/agent.py
 ```
 
-Or use the compiled graph directly:
-
+### Python API Usage
 ```python
 from src.agent import app
 state = app.invoke({"user_query": "Is it safe to take ibuprofen with amoxicillin for a dental infection?"})
 print(state["generated_medical_output"])
 ```
+
+## Docker Deployment
+
+The application is containerized with a multi-stage `Dockerfile` and `docker-compose.yml` bundling the Python runtime, dependencies, and local Qdrant vectors (`data/qdrant_db/`).
+
+### Option A: Using Docker Compose (Recommended)
+
+1. **Build and start container in the background**:
+   ```bash
+   docker compose up --build -d
+   ```
+2. **View live logs**:
+   ```bash
+   docker compose logs -f
+   ```
+3. **Stop container**:
+   ```bash
+   docker compose down
+   ```
+
+### Option B: Using Docker CLI Directly
+
+1. **Build the image**:
+   ```bash
+   docker build -t grounded-clinical-agent:latest .
+   ```
+2. **Run container with `.env` file**:
+   ```bash
+   docker run -d --name clinical-agent -p 8000:8000 --env-file .env grounded-clinical-agent:latest
+   ```
+
+### Verifying the Container
+
+- **OpenAPI Docs**:
+  ```bash
+  curl -I http://localhost:8000/docs
+  ```
+- **REST Clinical Query (`/query`)**:
+  ```bash
+  curl -X POST http://localhost:8000/query \
+    -H "Content-Type: application/json" \
+    -d '{"query": "What is the recommended antibiotic prophylaxis for infective endocarditis?"}'
+  ```
+- **CopilotKit AG-UI Endpoint**:
+  Available at `http://localhost:8000/ag-ui`.
 
 ## Evaluating
 

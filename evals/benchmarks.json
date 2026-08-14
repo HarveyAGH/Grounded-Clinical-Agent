@@ -85,6 +85,18 @@
       "avg_faithfulness": 0.904,
       "hallucination_rate": 0.096,
       "notes": "POST-RESTORE baseline: agent.py reverted to a835e37 original (ReAct medical_agent_node, SUCCESS->END graph, no synthesizer; dead code removed). Confirms restore: 0.904 back near r004 (0.930) baseline, well above collapsed r005 (0.803)."
+    },
+    {
+      "run_id": "r007",
+      "date": "2026-08-12",
+      "commit": "a76db62",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/adversarial_questions.json",
+      "num_questions": 20,
+      "avg_faithfulness": 0.808,
+      "hallucination_rate": 0.192,
+      "notes": ""
     }
   ]
 }
