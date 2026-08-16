@@ -88,18 +88,14 @@ The web interface is built with React 19, TypeScript, and a vanilla CSS design s
 
 ## System Economics
 
-Hiring managers and technical leads evaluate unit economics and token efficiency. By combining a lightweight model with a deterministic verification loop, this architecture achieves frontier-grade safety at a fraction of the cost.
+The per-1M-token pricing below is directly sourced from AWS Bedrock's published pricing for Claude Haiku 4.5 vs Claude Sonnet 4.6. Cost-per-query estimates are derived from these rates and are **theoretical upper bounds** — actual spend depends on prompt length and retry count. End-to-end latency and per-query token consumption are not yet instrumented in this codebase; those metrics are tracked on the Phase 5 roadmap.
 
-| Metric | Monolithic Single-Pass (Sonnet 4.6 / GPT-4o) | Grounded Agent Pipeline (Haiku 4.5 + Groundness Loop) | Savings / Impact |
+| Metric | Claude Sonnet 4.6 / GPT-4o (Single-Shot) | Haiku 4.5 + Groundness Loop | Basis |
 |---|---|---|---|
-| **Input Token Pricing (per 1M)** | $3.00 | $0.25 | **91.7% cheaper input** |
-| **Output Token Pricing (per 1M)** | $15.00 | $1.25 | **91.7% cheaper output** |
-| **Cost per 1,000 Queries (Avg)** | ~$18.00 | ~$2.40 (including retry iterations) | **~86.6% cost reduction** |
-| **Hallucination Rate** | 15–25% (unverified single-shot) | < 7.0% (deterministic self-correction) | **Superior clinical safety** |
-
-### Latency Profile
-* **Time to First Token (TTFT):** Streamed to UI in ~250–350ms.
-* **Full Cyclic Execution Latency:** Retrieval (50ms) + Generation (700ms) + Groundness Verification (400ms) = **~1.15s total end-to-end**.
+| **Input Pricing (per 1M tokens)** | $3.00 | $0.25 | AWS Bedrock published rates |
+| **Output Pricing (per 1M tokens)** | $15.00 | $1.25 | AWS Bedrock published rates |
+| **Theoretical Input Cost Reduction** | — | **91.7% cheaper** | Pricing differential only |
+| **Hallucination Rate** | Not measured | **5.0%** on 40-question benchmark | File-backed: `evals/benchmarks.json` `r009` |
 
 ---
 
