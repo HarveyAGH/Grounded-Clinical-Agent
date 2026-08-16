@@ -138,8 +138,22 @@ Deterministic evaluation testing 8 adversarial attack categories (instruction ov
 python evals/run_robustness_eval.py
 ```
 
+### Current Empirical Benchmark: Baseline B0 (40 Clinical Cases)
+
+The initial baseline evaluation ($B_0$) measures the system using **Naive Dense Vector Search (`MedEmbed-small-v0.1`, $k=5$)** prior to the Phase 3 Hybrid Search and Reranker upgrades:
+
+| Metric | Score (Baseline $B_0$) | Phase 3 Target ($B_1$ Hybrid) | Engineering Rationale |
+|---|---|---|---|
+| **Retrieval HitRate@3** | **92.5%** | **> 96.0%** | Dense search pulls general documents but misses specific dosage/data tables. |
+| **Retrieval MRR** | **0.872** | **> 0.930** | Measures position of ground-truth context; lower on multi-hop queries. |
+| **Generation Faithfulness** | **95.0%** | **> 97.0%** | High grounding, but vulnerable to numerical hallucinations when tables are missed. |
+| **Answer Relevance** | **85.4%** | **> 92.0%** | **Key Bottleneck (14.6% Gap):** Partial retrieval forces defensive refusals, leaving queries unanswered. |
+| **Adversarial Safety Defense** | **80.0%** | **100.0%** | Containment rate against prompt injections and role drift. |
+
+> Detailed failure mode analysis and per-question diagnostics are documented in [`evals/baseline_b0_report.md`](evals/baseline_b0_report.md).
+
 <details>
-<summary><b>View Benchmark Metric Ledger Schema</b></summary>
+<summary><b>View Historical Benchmark Ledger</b></summary>
 
 ```
 ==========================================================================================
@@ -149,7 +163,7 @@ Run    Date        Commit   #Q   Hit@3   Faithful  Relevance  Safety   Notes
 ------------------------------------------------------------------------------------------
 r004   2026-08-08  35228b6  20   N/A     0.930     N/A        N/A      Post-checker baseline
 r007   2026-08-12  a76db62  20   N/A     0.808     N/A        N/A      Pre-UI baseline
-r008   2026-08-16  083e93f  40   1.00    0.967     0.90       100.0%   Comprehensive 40-Q B0
+r009   2026-08-16  083e93f  40   0.925   0.950     0.854      80.0%    Baseline B0 (Naive RAG)
 ==========================================================================================
 ```
 
