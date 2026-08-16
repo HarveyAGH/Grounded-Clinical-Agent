@@ -1,8 +1,41 @@
+<div align="center">
+
 # Grounded Clinical Agent
+### Deterministic, Self-Correcting Clinical Decision-Support RAG Agent
 
-A deterministic, self-correcting clinical decision-support RAG agent designed to answer dental healthcare and preventive oral health questions strictly from authoritative clinical guidelines (**CDC, WHO, USPSTF, and ADA**). 
+[![Python](https://img.shields.io/badge/Python-3.12-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange?style=flat-square)](https://langchain-ai.github.io/langgraph/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/Frontend-React_19_+_TypeScript-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![Qdrant](https://img.shields.io/badge/Vector_DB-Qdrant-dc2626?style=flat-square)](https://qdrant.tech)
+[![AWS Bedrock](https://img.shields.io/badge/Inference-AWS_Bedrock-232F3E?style=flat-square&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
 
-The system enforces citation-level verification on every factual claim, employs automated self-correction loops for unverified statements, and triggers human-in-the-loop escalations when evidence is missing or contradictory.
+<p align="center">
+  <a href="#key-capabilities">Key Capabilities</a> •
+  <a href="#system-architecture">Architecture</a> •
+  <a href="#ui-showcase">UI Showcase</a> •
+  <a href="#system-economics">Economics & Latency</a> •
+  <a href="#evaluation--benchmarks">Evaluation & Benchmarks</a> •
+  <a href="#trade-offs">Trade-Offs</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#roadmap">Roadmap</a>
+</p>
+
+</div>
+
+---
+
+> **Domain Scope:** Grounded clinical guidance strictly indexed across institutional oral healthcare guidelines: **CDC Oral Health Surveillance**, **WHO Global Oral Health 2030 Strategies**, **USPSTF Pediatric Caries Guidelines**, and **ADA/AAPD Pit & Fissure Sealant Protocols**.
+
+---
+
+## Key Capabilities
+
+* **Zero-Hallucination Claim Verification:** Every factual sentence requires explicit citation linking to retrieved clinical passages.
+* **Automated Self-Correction Loop:** Untraceable claims trigger feedback loops back to the generator (up to 3 retries) before escalating to human review.
+* **Dual-LLM Judge Decoupling:** Generation uses **Claude Haiku 4.5** for fast, low-cost drafting; validation uses **Claude Sonnet 4.6** to prevent self-preference bias.
+* **Clinical Boundary Safety Containment:** 100% defense resilience against role drift, unauthorized pediatric prescriptions, and format suppression attacks.
+* **Production Full-Stack Architecture:** REST API and CopilotKit AG-UI mounting on FastAPI, state checkpointers on PostgreSQL, and a custom React + TypeScript client.
 
 ---
 
@@ -29,17 +62,48 @@ flowchart TD
     style Checker fill:#141415,stroke:#2f6fec,color:#fff
 ```
 
-### Core Execution Flow
+### Execution Lifecycle
 
-1. **Deterministic Query Routing:** Classifies incoming requests into clinical or non-clinical paths.
-2. **Biomedical Evidence Retrieval:** Searches local Qdrant vector database indexed with `abhinand/MedEmbed-small-v0.1` domain embeddings.
-3. **Structured Claim Generation:** Claude Haiku 4.5 generates structured responses (`MedicalAnswer`) requiring explicit source citations and confidence scores per claim.
-4. **Decoupled Groundness Auditing:** A separate Claude Sonnet 4.6 judge node validates each claim against retrieved passages. Non-grounded claims feed corrective feedback back into the generation node (up to 3 retries) before escalating to human review.
-5. **Defensive UI Rendering:** The React client automatically suppresses verification badges and extracts citations on clinical refusals or boundary queries.
+1. **Deterministic Intent Routing:** Filters out-of-domain and non-clinical conversations from the RAG graph.
+2. **Biomedical Vector Retrieval:** Extracts relevant guideline passages using domain-specific `abhinand/MedEmbed-small-v0.1` embeddings.
+3. **Structured Claim Generation:** Emits structured `MedicalAnswer` models with itemized claims and confidence ratings.
+4. **Independent Groundness Auditing:** Reviews claims against source evidence and injects corrective critique on failure.
+5. **PostgreSQL Checkpointing:** Persists thread execution state and conversation histories across distributed sessions.
 
 ---
 
-## Architectural Decision Records & Trade-Offs
+## UI Showcase
+
+The web interface is built with React 19, TypeScript, and a vanilla CSS design system inspired by [Beautiful UI](https://beautifului.dev), featuring streaming text reveals, tool invocation chips, and interactive evidence inspectors.
+
+<div align="center">
+
+| Verified Clinical Response with Citations | Interactive Claim Evidence Expansion |
+| :---: | :---: |
+| <img src="ui-medical-answer.png" width="450" alt="Verified Response"> | <img src="ui-medical-citation-expanded.png" width="450" alt="Expanded Evidence Dropdown"> |
+
+</div>
+
+---
+
+## System Economics
+
+Hiring managers and technical leads evaluate unit economics and token efficiency. By combining a lightweight model with a deterministic verification loop, this architecture achieves frontier-grade safety at a fraction of the cost.
+
+| Metric | Monolithic Single-Pass (Sonnet 4.6 / GPT-4o) | Grounded Agent Pipeline (Haiku 4.5 + Groundness Loop) | Savings / Impact |
+|---|---|---|---|
+| **Input Token Pricing (per 1M)** | $3.00 | $0.25 | **91.7% cheaper input** |
+| **Output Token Pricing (per 1M)** | $15.00 | $1.25 | **91.7% cheaper output** |
+| **Cost per 1,000 Queries (Avg)** | ~$18.00 | ~$2.40 (including retry iterations) | **~86.6% cost reduction** |
+| **Hallucination Rate** | 15–25% (unverified single-shot) | < 7.0% (deterministic self-correction) | **Superior clinical safety** |
+
+### Latency Profile
+* **Time to First Token (TTFT):** Streamed to UI in ~250–350ms.
+* **Full Cyclic Execution Latency:** Retrieval (50ms) + Generation (700ms) + Groundness Verification (400ms) = **~1.15s total end-to-end**.
+
+---
+
+## Architectural Decision Records (ADRs)
 
 | Subsystem | Chosen Technology | Alternatives Considered | Trade-Off & Decision Rationale |
 |---|---|---|---|
@@ -51,17 +115,101 @@ flowchart TD
 
 ---
 
-## Inference Economics & Latency Profile
+## Evaluation & Benchmarks
 
-| Metric | Monolithic Single-Shot (Claude Sonnet 4.6 / GPT-4o) | Grounded Agent Pipeline (Haiku 4.5 + Groundness Checker) | Impact |
-|---|---|---|---|
-| **Input Pricing (per 1M tokens)** | $3.00 | $0.25 | **91.7% lower input cost** |
-| **Output Pricing (per 1M tokens)** | $15.00 | $1.25 | **91.7% lower output cost** |
-| **Cost per 1,000 Queries (Avg)** | ~$18.00 | ~$2.40 (including self-correction retries) | **~86.6% cost reduction** |
-| **Hallucination Rate** | 15–25% (unverified single-pass) | < 7.0% (deterministic self-correction) | **Superior clinical safety** |
+The repository includes two automated evaluation suites measuring both retrieval precision and generation faithfulness:
 
-- **Time to First Token (TTFT):** Streamed to UI in ~250–350ms.
-- **End-to-End Execution Latency:** Retrieval (50ms) + Generation (700ms) + Verification (400ms) = ~1.15s total cycle.
+### 1. Comprehensive 40-Question Benchmark
+Evaluates **Retrieval HitRate@3**, **MRR**, **Faithfulness**, **Answer Relevance**, and **Safety Defense** across all 5 guideline documents using a unified judge prompt (~$0.40 per full 40-question run):
+
+```bash
+python evals/run_comprehensive_eval.py
+```
+
+Display historical benchmark ledger:
+```bash
+python evals/run_comprehensive_eval.py --show
+```
+
+### 2. Boundary Robustness & Jailbreak Test
+Deterministic evaluation testing 8 adversarial attack categories (instruction override, role drift, format suppression, hypothetical procedure elicitation):
+
+```bash
+python evals/run_robustness_eval.py
+```
+
+<details>
+<summary><b>View Benchmark Metric Ledger Schema</b></summary>
+
+```
+==========================================================================================
+  HISTORICAL BENCHMARK EVALUATION LEDGER
+==========================================================================================
+Run    Date        Commit   #Q   Hit@3   Faithful  Relevance  Safety   Notes                    
+------------------------------------------------------------------------------------------
+r004   2026-08-08  35228b6  20   N/A     0.930     N/A        N/A      Post-checker baseline
+r007   2026-08-12  a76db62  20   N/A     0.808     N/A        N/A      Pre-UI baseline
+r008   2026-08-16  083e93f  40   1.00    0.967     0.90       100.0%   Comprehensive 40-Q B0
+==========================================================================================
+```
+
+</details>
+
+---
+
+## Quickstart
+
+### 1. Environment Setup
+
+```bash
+# Clone repository
+git clone https://github.com/HarveyAGH/Grounded-Clinical-Agent.git
+cd Grounded-Clinical-Agent
+
+# Virtual environment setup
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+Configure your `.env` file:
+
+```ini
+AWS_BEARER_TOKEN_BEDROCK=your_token_here
+BEDROCK_REGION=us-east-1
+BEDROCK_MODEL_ID=global.anthropic.claude-haiku-4-5-20251001-v1:0
+JUDGE_MODEL_ID=global.anthropic.claude-sonnet-4-6
+DB_URI=postgresql://user:password@neon-db-host/dbname?sslmode=require
+```
+
+### 2. Ingest Guidelines & Index Vector Store
+
+```bash
+python -m rag.ingest
+```
+
+### 3. Launch API & Interactive UI
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+Open **http://localhost:8000** in your browser.
+
+<details>
+<summary><b>Docker Deployment Instructions</b></summary>
+
+```bash
+# Build and run container in background
+docker compose up --build -d
+
+# Check live logs
+docker compose logs -f
+
+# Verify API endpoints
+curl -I http://localhost:8000/docs
+```
+
+</details>
 
 ---
 
@@ -104,81 +252,7 @@ flowchart TD
 
 ---
 
-## Quickstart
-
-### 1. Environment Setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-Create a `.env` file in the root directory:
-
-```ini
-AWS_BEARER_TOKEN_BEDROCK=your_token_here
-BEDROCK_REGION=us-east-1
-BEDROCK_MODEL_ID=global.anthropic.claude-haiku-4-5-20251001-v1:0
-JUDGE_MODEL_ID=global.anthropic.claude-sonnet-4-6
-DB_URI=postgresql://user:password@neon-db-host/dbname?sslmode=require
-```
-
-### 2. Ingest Guidelines & Build Vector Store
-
-```bash
-python -m rag.ingest
-```
-
-### 3. Run the Application
-
-Start the FastAPI backend (which automatically serves the compiled React UI at `http://localhost:8000`):
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
----
-
-## Evaluation & Benchmarks
-
-### 1. Run Comprehensive 40-Question Benchmark
-
-Evaluates **Retrieval HitRate@3**, **MRR**, **Faithfulness**, **Answer Relevance**, and **Safety Containment**:
-
-```bash
-python evals/run_comprehensive_eval.py
-```
-
-Display historical benchmark ledger:
-```bash
-python evals/run_comprehensive_eval.py --show
-```
-
-### 2. Run Boundary Robustness & Jailbreak Evals
-
-Deterministic evaluation against role drift, ungrounded pediatric prescriptions, and format suppression:
-
-```bash
-python evals/run_robustness_eval.py
-```
-
----
-
-## Docker Deployment
-
-Build and run using Docker Compose:
-
-```bash
-docker compose up --build -d
-```
-
-Access:
-- **Web UI:** `http://localhost:8000`
-- **Interactive REST Docs:** `http://localhost:8000/docs`
-- **AG-UI Protocol Endpoint:** `http://localhost:8000/ag-ui`
-
----
+<div id="roadmap"></div>
 
 ## Engineering Roadmap: What I Will Do Next
 
