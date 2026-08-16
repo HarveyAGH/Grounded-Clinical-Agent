@@ -204,7 +204,7 @@ edited in Markdown, not in Python strings.
 
 **Context:** "What's the capital of France?" (halluc_14) scored 0 with an empty
 output — but the agent *did* answer correctly. The conversation agent writes to
-`generated_normal_output`, while the harness only read `generated_medical_output`,
+`generated_output`, while the harness only read `generated_output`,
 so valid conversational answers were scored as if nothing happened.
 
 **Decision:** The harness captures whichever field actually ran. Out-of-domain

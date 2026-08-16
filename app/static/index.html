@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grounded Clinical AI Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-badge">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span class="brand-pulse"></span>
+        </div>
+        <div>
+          <h1 class="brand-title">Grounded Clinical Agent</h1>
+          <p class="brand-subtitle">Evidence-Grounded Dental Guidelines • Self-Verification RAG</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="model-badge">
+          <span class="indicator-dot"></span>
+          <span>Claude Haiku 4.5 • Qdrant Vector Store</span>
+        </div>
+        <button id="btn-clear-chat" class="btn-secondary" title="Reset Session">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Reset Session
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Conversation Stream -->
+      <section class="chat-container">
+        <div id="messages-list" class="messages-list">
+          <!-- Welcome Intro Card -->
+          <div class="welcome-card" id="welcome-card">
+            <div class="welcome-header">
+              <div class="welcome-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+              </div>
+              <div>
+                <h2>Clinical Evidence Retrieval & Verification</h2>
+                <p>Query dental clinical guidelines with automated citation grounding and evaluator-optimizer verification.</p>
+              </div>
+            </div>
+
+            <div class="sample-queries">
+              <span class="sample-title">Prompt Templates</span>
+              <div class="query-pills">
+                <button class="pill-btn" data-query="What are the recommended indications for antibiotic prophylaxis in dental procedures?">
+                  Antibiotic Prophylaxis Guidelines
+                </button>
+                <button class="pill-btn" data-query="What does clinical evidence recommend for dental caries prevention?">
+                  Dental Caries Prevention
+                </button>
+                <button class="pill-btn" data-query="What is edentulism and how is oral disease status measured globally?">
+                  Global Oral Disease Status
+                </button>
+                <button class="pill-btn" data-query="Hello! Can you introduce yourself and explain your clinical grounding framework?">
+                  General Conversational Query
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="input-container">
+          <form id="chat-form" class="chat-form">
+            <div class="input-wrapper">
+              <textarea 
+                id="query-input" 
+                rows="1" 
+                placeholder="Enter clinical query or topic..." 
+                required
+              ></textarea>
+              <button type="submit" id="btn-submit" class="btn-primary" aria-label="Send Query">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+            <div class="input-footer">
+              <span class="safety-note">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 4px;">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Double-pass groundness verification active. Substantive claims require citations.
+              </span>
+              <span id="char-counter" class="char-counter">Enter to send • Shift+Enter for newline</span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Context / Evidence Inspector Panel -->
+      <aside class="evidence-panel" id="evidence-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <h3>Evidence Inspector</h3>
+          </div>
+          <span id="evidence-count-badge" class="evidence-count-badge">0 Chunks</span>
+        </div>
+
+        <div id="evidence-empty-state" class="panel-empty-state">
+          <div class="empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <h4>No Evidence Loaded</h4>
+          <p>Execute a clinical query to inspect Qdrant guideline chunks, relevance scores, and metadata.</p>
+        </div>
+
+        <div id="evidence-content" class="panel-content hidden">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Citation Detail Modal -->
+  <div id="citation-modal" class="modal hidden">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="badge badge-citation">Citation Reference</span>
+          <h3 id="modal-citation-title">Source Details</h3>
+        </div>
+        <button id="modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-section">
+          <label>Extracted Claim</label>
+          <p id="modal-claim-text" class="modal-claim-text"></p>
+        </div>
+        <div class="modal-section">
+          <label>Confidence Score</label>
+          <div class="confidence-bar-wrapper">
+            <div class="confidence-bar-track">
+              <div id="modal-confidence-bar" class="confidence-bar-fill"></div>
+            </div>
+            <span id="modal-confidence-text" class="confidence-value"></span>
+          </div>
+        </div>
+        <div class="modal-section">
+          <label>Source Document Identifier</label>
+          <code id="modal-source-text" class="source-tag"></code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

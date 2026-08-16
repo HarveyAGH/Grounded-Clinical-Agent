@@ -92,12 +92,16 @@ async def run_evaluation():
         print(f"Testing: {case['id']} - {case['question'][:50]}...")
 
         final_state = app.invoke({"user_query": case["question"]})
-        medical_answer = final_state.get("generated_medical_output") or ""
-        normal_answer = final_state.get("generated_normal_output") or ""
-        # The medical agent writes to `generated_medical_output`; the conversational
-        # agent (out-of-domain queries) writes to `generated_normal_output`. Capture
-        # whichever path actually ran so we don't record empty answers as failures.
-        routed_to_conversational = bool(normal_answer) and not medical_answer
+        medical_obj = final_state.get("medical_output")
+        if hasattr(medical_obj, "answer"):
+            medical_answer = medical_obj.answer
+        elif isinstance(medical_obj, str):
+            medical_answer = medical_obj
+        else:
+            medical_answer = ""
+
+        normal_answer = final_state.get("conversational_output") or ""
+        routed_to_conversational = final_state.get("status") == "conversational_agent"
         answer = normal_answer if routed_to_conversational else medical_answer
         chunks = final_state.get("retrieved_chunks", [])
 

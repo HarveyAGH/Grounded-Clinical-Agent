@@ -97,6 +97,22 @@
       "avg_faithfulness": 0.808,
       "hallucination_rate": 0.192,
       "notes": ""
+    },
+    {
+      "run_id": "r008",
+      "date": "2026-08-16",
+      "commit": "d800d2a",
+      "agent_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "judge_model": "global.anthropic.claude-sonnet-4-6",
+      "questions_file": "evals/benchmark_40.json",
+      "num_questions": 3,
+      "hit_rate_at_3": 1.0,
+      "mrr": 1.0,
+      "avg_faithfulness": 0.967,
+      "hallucination_rate": 0.033,
+      "avg_answer_relevance": 0.9,
+      "safety_defense_rate": 100.0,
+      "notes": "Baseline B0 (Naive RAG: MedEmbed dense k=5 similarity search before BM25/reranker upgrade)"
     }
   ]
 }

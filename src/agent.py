@@ -8,7 +8,7 @@ from .tools import tools
 from langchain_core.messages import ToolMessage
 from langchain.agents import create_agent
 from langchain.agents.structured_output import StructuredOutputValidationError
-from .states import MedicalAgentState, EvaluatorOptimizer, Router, MedicalAnswer
+from .states import MedicalAgentState, EvaluatorOptimizer, Router, MedicalAnswer, CitedClaim
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
@@ -40,6 +40,7 @@ Feedback = haiku.with_structured_output(EvaluatorOptimizer)
 medical_agent = create_agent(
     model=haiku,
     tools=tools,
+    system_prompt=system_prompt_medical,
     response_format=MedicalAnswer,
 )
 
@@ -47,55 +48,35 @@ medical_agent = create_agent(
 
 
 def Router_function(state: MedicalAgentState):
-    verdict = router.invoke([SystemMessage(content=system_prompt_router),
-HumanMessage(content=f"here is the query to give a verdict on: {state['user_query']}")])
-    return {"status": verdict.verdict, }
+    verdict = router.invoke([
+        SystemMessage(content=system_prompt_router),
+        HumanMessage(content=f"here is the query to give a verdict on: {state['user_query']}")
+    ])
+    return {"status": verdict.verdict}
 
 def medical_agent_node(state: MedicalAgentState):
-    # we assign messages with the entire message history
-    messages = state["messages"]
-    # we assignnew_messages variable to an empty list which will get populated by either the if/else blocks
-    new_messages = []
-    # we are saying if the history does not exist we want to invoke this instance of  new_messages
-    if not messages:
-        new_messages = [
-            SystemMessage(content=system_prompt_medical),
-            HumanMessage(content=f"user query is: {state['user_query']}"),
-        ]
-    # we are saying if the feedback state exists, instead of using the previous new_message variable we want to use this one to invoke it
-    elif state.get("Feedback"):
-        new_messages = [HumanMessage(content=f"Revise your previous answer using this feedback, then conduct a fresh retrival with a better more suitable query: {state['Feedback']}")]
-    # we then finally call the llm inserting the full message history + the selected new_message depending on the if/else blocks
-    prompt = messages + new_messages
-    for attempt in range(3):
-        try:
-            response = medical_agent.invoke({"messages": prompt})
-            break
-        except StructuredOutputValidationError:
-            if attempt == 2:
-                raise
-    answer = response["structured_response"]
-    retrieved_chunks = []
-    for msg in state["messages"]:
-        if isinstance(msg, ToolMessage):
-            retrieved_chunks.append(msg.content)
-            
-            
-        
-    # we return only the final generated rag output into `generated_medical_output`
-    # then we return the new_messages block (whether it was if or else's one)  alongside the full response into the message history
-    return{
-        "generated_medical_output": answer.answer,
+    query = state["user_query"]
+    if state.get("Feedback"):
+        query += f"\n\n[Correction Feedback]: Revise your previous answer addressing this critique: {state['Feedback']}"
+
+    response = medical_agent.invoke({"messages": [HumanMessage(content=query)]})
+    retrieved_chunks = [
+        msg.content for msg in response["messages"] if isinstance(msg, ToolMessage)
+    ]
+
+    return {
+        "medical_output": response["structured_response"],
         "messages": response["messages"],
-        "retrieved_chunks": retrieved_chunks
+        "retrieved_chunks": retrieved_chunks,
     }
         
 
 def CONVERSATION_AGENT(state: MedicalAgentState):
-    #TODO:
-    response = haiku_converstaional.invoke([SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way"),
-    HumanMessage(content=f"user query is: {state['user_query']}")])
-    return {"generated_normal_output": response.content}
+    response = haiku_converstaional.invoke([
+        SystemMessage(content="You are an amazing helpful agent, your job is to assist the user in any way"),
+        HumanMessage(content=f"user query is: {state['user_query']}")
+    ])
+    return {"conversational_output": response.content}
 
 
 
@@ -108,9 +89,15 @@ def groundness_checker(state: MedicalAgentState):
             "retry_count": state.get("retry_count", 0) + 1,
         }
 
+    medical_output = state.get("medical_output")
+    if hasattr(medical_output, "model_dump_json"):
+        output_for_eval = medical_output.model_dump_json()
+    else:
+        output_for_eval = str(medical_output)
+
     response = Feedback.invoke([
         SystemMessage(content="You are strict groundness checker, your main objective is to validate whether or not the generated medical output is tracable from the retrieved chunks or not, if it IS retrieved AND IS PRECIESLEY RELEVANT in terms of information, you may respond with claim_is_tracable, Claims about the agent's own limitations, disclaimers, refusal to prescribe/diagnose, or statements that the retrieved evidence does not cover a topic should be excluded from traceability checking. Only verify the medical/factual claims."),
-        HumanMessage(content=f"here is the generated output: {state['generated_medical_output']}, and here is the retrieved_chunks: {state['retrieved_chunks']}")
+        HumanMessage(content=f"here is the generated output: {output_for_eval}, and here is the retrieved_chunks: {state['retrieved_chunks']}")
     ])
 
     return {
@@ -126,10 +113,25 @@ def groundness_checker(state: MedicalAgentState):
 
 
 
-def fallback_node(state:MedicalAgentState):
-    return { "generated_medical_output": "This request could not complete within its allotted execution steps. Cause undetermined — escalating for human review.", "status": "escalated"}
-def evaluator_fallback_node(state:MedicalAgentState):
-    return{"generated_medical_output": "Unable to verify this claim against retrieved sources after multiple attempts — escalating for human review.", "status": "escalated"}
+def fallback_node(state: MedicalAgentState):
+    return {
+        "medical_output": MedicalAnswer(
+            answer="This request could not complete within its allotted execution steps. Cause undetermined — escalating for human review.",
+            claims=[CitedClaim(claim="Escalated for human review due to step limit.", citation="System Fallback", confidence=1.0)],
+            disclaimer="This information is for educational purposes only and does not constitute medical advice."
+        ),
+        "status": "escalated"
+    }
+
+def evaluator_fallback_node(state: MedicalAgentState):
+    return {
+        "medical_output": MedicalAnswer(
+            answer="Unable to verify this claim against retrieved sources after multiple attempts — escalating for human review.",
+            claims=[CitedClaim(claim="Escalated for human review due to verification limits.", citation="System Fallback", confidence=1.0)],
+            disclaimer="This information is for educational purposes only and does not constitute medical advice."
+        ),
+        "status": "escalated"
+    }
     
 
 def Response_route(state: MedicalAgentState):
@@ -146,8 +148,6 @@ def Route(state: MedicalAgentState):
     status = state["status"]
     if status == "medical_agent":
         return "medical"
-    # conversational_agent and web_search_agent both go to the standard agent;
-    # anything unexpected also falls back there so the router never returns None
     return "non_medical"
     
     
@@ -159,7 +159,6 @@ graph.add_node("medical_agent", medical_agent_node)
 graph.add_node("standard_agent", CONVERSATION_AGENT)
 graph.add_node("query_validator", Router_function)
 graph.add_node("checker", groundness_checker)
-graph.add_node("tool_node", ToolNode(tools))
 
 graph.add_edge(START, "query_validator")
 graph.add_conditional_edges("query_validator", Route,
@@ -167,7 +166,7 @@ graph.add_conditional_edges("query_validator", Route,
         "medical": "medical_agent",
         "non_medical": "standard_agent"
     }
-    )
+)
 
 
 graph.add_edge("medical_agent", "checker")
@@ -196,34 +195,26 @@ if __name__ == "__main__":
             print("Shutting down system..")
             break
         
-        response = app.invoke({"user_query":user_input}, config=config)
+        response = app.invoke({"user_query": user_input}, config=config)
         
+        print("-" * 80)
+        if response.get("medical_output"):
+            med = response["medical_output"]
+            print(f"MEDICAL ANSWER:\n{med.answer}\n")
+            print("CITED CLAIMS:")
+            for c in med.claims:
+                print(f"  - Claim: {c.claim} | Citation: {c.citation} | Confidence: {c.confidence}")
+            print(f"\nDISCLAIMER: {med.disclaimer}")
+        
+        if response.get("conversational_output"):
+            print(f"CONVERSATIONAL OUTPUT:\n{response['conversational_output']}")
+            
+        print("-" * 80)
+        if response.get("Feedback"):
+            print(f"FEEDBACK: {response['Feedback']}")
+        if response.get("generated_output_valid_or_not"):
+            print(f"GROUNDNESS VERDICT: {response['generated_output_valid_or_not']}")
         print("-" * 80)
         
         
-        print(response.get("generated_medical_output", ""))
         
-        
-        print("-" * 80)
-        
-        print(response.get("generated_normal_output", "No normal output was added."))
-        
-        
-        print("-" * 80)
-        
-        
-        print("THE FEEDBACK FOR THIS QUERY FROM THE GROUNDED AGENT:")
-        
-        
-        print("-" * 80)
-        print(response.get("Feedback", ""))
-        print("-" * 80)
-        
-        
-        print("THE OUTCOME WAS:")
-        
-        
-        print("-" * 80)
-        
-        
-        print(response.get("generated_output_valid_or_not", ""))
